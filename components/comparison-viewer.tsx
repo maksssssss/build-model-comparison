@@ -1,11 +1,21 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Eye, EyeOff, Grid3x3, BarChart3 } from "lucide-react"
+import { ArrowLeft, Eye, EyeOff, Grid3x3, BarChart3, Ruler, Crosshair } from "lucide-react"
 import { useState } from "react"
 import { ModelViewer } from "./model-viewer"
 import { DeviationPanel } from "./deviation-panel"
+import { ViewControls } from "./view-controls"
+import { MeasurementTool } from "./measurement-tool"
 import type { DeviationAnalysis } from "@/lib/model-comparison"
+import type * as THREE from "three"
+
+interface Measurement {
+  id: string
+  start: THREE.Vector3
+  end: THREE.Vector3
+  distance: number
+}
 
 interface ComparisonViewerProps {
   bimFile: File
@@ -21,6 +31,16 @@ export function ComparisonViewer({ bimFile, scanFile, onReset }: ComparisonViewe
   const [deviationData, setDeviationData] = useState<DeviationAnalysis | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
+  const [bimOpacity, setBimOpacity] = useState(0.75)
+  const [scanOpacity, setScanOpacity] = useState(0.7)
+  const [bimRenderMode, setBimRenderMode] = useState<"solid" | "wireframe" | "points">("solid")
+  const [scanRenderMode, setScanRenderMode] = useState<"solid" | "wireframe" | "points">("solid")
+
+  const [measurementMode, setMeasurementMode] = useState(false)
+  const [measurements, setMeasurements] = useState<Measurement[]>([])
+
+  const [triggerAlignment, setTriggerAlignment] = useState(false)
+
   const handleAnalysisComplete = (analysis: DeviationAnalysis) => {
     console.log("[v0] Analysis received:", analysis)
     setDeviationData(analysis)
@@ -31,6 +51,30 @@ export function ComparisonViewer({ bimFile, scanFile, onReset }: ComparisonViewe
   const handleStartAnalysis = () => {
     console.log("[v0] Starting analysis...")
     setIsAnalyzing(true)
+  }
+
+  const handleAddMeasurement = (start: THREE.Vector3, end: THREE.Vector3) => {
+    const distance = start.distanceTo(end)
+    const measurement: Measurement = {
+      id: `measure-${Date.now()}`,
+      start,
+      end,
+      distance,
+    }
+    setMeasurements((prev) => [...prev, measurement])
+  }
+
+  const handleClearMeasurements = () => {
+    setMeasurements([])
+  }
+
+  const handleDeleteMeasurement = (id: string) => {
+    setMeasurements((prev) => prev.filter((m) => m.id !== id))
+  }
+
+  const handleAlign = () => {
+    setTriggerAlignment(true)
+    setTimeout(() => setTriggerAlignment(false), 100)
   }
 
   return (
@@ -77,6 +121,19 @@ export function ComparisonViewer({ bimFile, scanFile, onReset }: ComparisonViewe
             <Grid3x3 className="h-4 w-4" />
             {showGrid ? "Сетка" : "Без сетки"}
           </Button>
+          <Button variant="outline" size="sm" onClick={handleAlign} className="gap-2 bg-transparent">
+            <Crosshair className="h-4 w-4" />
+            Выровнять
+          </Button>
+          <Button
+            variant={measurementMode ? "default" : "outline"}
+            size="sm"
+            onClick={() => setMeasurementMode(!measurementMode)}
+            className="gap-2"
+          >
+            <Ruler className="h-4 w-4" />
+            Измерить
+          </Button>
           <Button
             variant={showDeviations ? "default" : "outline"}
             size="sm"
@@ -103,12 +160,41 @@ export function ComparisonViewer({ bimFile, scanFile, onReset }: ComparisonViewe
             showDeviations={showDeviations}
             onAnalysisComplete={handleAnalysisComplete}
             startAnalysis={isAnalyzing}
+            bimOpacity={bimOpacity}
+            scanOpacity={scanOpacity}
+            bimRenderMode={bimRenderMode}
+            scanRenderMode={scanRenderMode}
+            measurementMode={measurementMode}
+            measurements={measurements}
+            onAddMeasurement={handleAddMeasurement}
+            triggerAlignment={triggerAlignment}
           />
+
+          {!showDeviations && !measurementMode && (
+            <ViewControls
+              bimOpacity={bimOpacity}
+              scanOpacity={scanOpacity}
+              onBimOpacityChange={setBimOpacity}
+              onScanOpacityChange={setScanOpacity}
+              bimRenderMode={bimRenderMode}
+              scanRenderMode={scanRenderMode}
+              onBimRenderModeChange={setBimRenderMode}
+              onScanRenderModeChange={setScanRenderMode}
+            />
+          )}
+
+          {measurementMode && (
+            <MeasurementTool
+              measurements={measurements}
+              onClearMeasurements={handleClearMeasurements}
+              onDeleteMeasurement={handleDeleteMeasurement}
+            />
+          )}
         </div>
 
         {showDeviations && deviationData && (
           <div className="w-96 border-l border-border">
-            <DeviationPanel data={deviationData} />
+            <DeviationPanel data={deviationData} bimFileName={bimFile.name} scanFileName={scanFile.name} />
           </div>
         )}
       </div>

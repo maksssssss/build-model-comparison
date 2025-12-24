@@ -1,11 +1,17 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { AlertTriangle, CheckCircle2, XCircle, Download } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react"
 import type { DeviationAnalysis } from "@/lib/model-comparison"
+import { ExportPanel } from "./export-panel"
 
-export function DeviationPanel({ data }: { data: DeviationAnalysis }) {
+interface DeviationPanelProps {
+  data: DeviationAnalysis
+  bimFileName?: string
+  scanFileName?: string
+}
+
+export function DeviationPanel({ data, bimFileName = "model.ifc", scanFileName = "scan.ply" }: DeviationPanelProps) {
   const { statistics, elements } = data
 
   const getStatusIcon = (status: string) => {
@@ -34,23 +40,8 @@ export function DeviationPanel({ data }: { data: DeviationAnalysis }) {
     }
   }
 
-  const handleExportReport = () => {
-    const report = {
-      timestamp: new Date().toISOString(),
-      statistics,
-      elements,
-    }
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `deviation-report-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   return (
-    <div className="w-80 border-l border-border bg-card">
+    <div className="w-96 border-l border-border bg-card">
       <div className="flex h-full flex-col">
         {/* Header */}
         <div className="border-b border-border p-4">
@@ -144,12 +135,8 @@ export function DeviationPanel({ data }: { data: DeviationAnalysis }) {
           </div>
         </div>
 
-        {/* Export Button */}
         <div className="border-t border-border p-4">
-          <Button variant="outline" className="w-full gap-2 bg-transparent" onClick={handleExportReport}>
-            <Download className="h-4 w-4" />
-            Экспортировать отчет
-          </Button>
+          <ExportPanel analysis={data} bimFileName={bimFileName} scanFileName={scanFileName} />
         </div>
       </div>
     </div>

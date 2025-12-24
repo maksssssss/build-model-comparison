@@ -1,12 +1,21 @@
 "use client"
 
-import { Canvas } from "@react-three/fiber"
+import { Canvas, useThree } from "@react-three/fiber"
 import { OrbitControls, Grid, PerspectiveCamera } from "@react-three/drei"
 import { Suspense, useState, useEffect, useRef } from "react"
 import * as THREE from "three"
 import { loadModelFromFile } from "@/lib/file-loaders"
 import { compareModels, type DeviationAnalysis } from "@/lib/model-comparison"
+import { alignModels, alignToGround } from "@/lib/model-alignment"
 import { DeviationHeatmap } from "./deviation-heatmap"
+import { MeasurementLine } from "./measurement-line"
+
+interface Measurement {
+  id: string
+  start: THREE.Vector3
+  end: THREE.Vector3
+  distance: number
+}
 
 interface ModelViewerProps {
   bimFile: File
@@ -17,6 +26,14 @@ interface ModelViewerProps {
   showDeviations: boolean
   onAnalysisComplete?: (analysis: DeviationAnalysis) => void
   startAnalysis?: boolean
+  bimOpacity?: number
+  scanOpacity?: number
+  bimRenderMode?: "solid" | "wireframe" | "points"
+  scanRenderMode?: "solid" | "wireframe" | "points"
+  measurementMode?: boolean
+  measurements?: Measurement[]
+  onAddMeasurement?: (start: THREE.Vector3, end: THREE.Vector3) => void
+  triggerAlignment?: boolean
 }
 
 function LoadedModel({
@@ -24,12 +41,14 @@ function LoadedModel({
   color,
   opacity,
   visible,
+  renderMode = "solid",
   onLoad,
 }: {
   file: File
   color: string
   opacity: number
   visible: boolean
+  renderMode?: "solid" | "wireframe" | "points"
   onLoad?: (model: THREE.Object3D) => void
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null)
@@ -97,6 +116,7 @@ function LoadedModel({
             material.color.set(color)
             material.transparent = opacity < 1
             material.opacity = opacity
+            material.wireframe = renderMode === "wireframe"
           }
         } else if (child instanceof THREE.Points) {
           const material = child.material as THREE.PointsMaterial
@@ -107,14 +127,94 @@ function LoadedModel({
           }
         }
       })
+
+      if (renderMode === "points") {
+        model.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.geometry) {
+            const points = new THREE.Points(
+              child.geometry,
+              new THREE.PointsMaterial({
+                color: color,
+                size: 0.05,
+                transparent: opacity < 1,
+                opacity: opacity,
+              }),
+            )
+            points.position.copy(child.position)
+            points.rotation.copy(child.rotation)
+            points.scale.copy(child.scale)
+            child.visible = false
+            if (child.parent) {
+              child.parent.add(points)
+            }
+          }
+        })
+      }
     }
-  }, [color, opacity, model])
+  }, [color, opacity, renderMode, model])
 
   if (loading || !model) {
     return null
   }
 
   return <primitive object={model} visible={visible} />
+}
+
+function ClickHandler({
+  measurementMode,
+  onAddMeasurement,
+}: {
+  measurementMode: boolean
+  onAddMeasurement?: (start: THREE.Vector3, end: THREE.Vector3) => void
+}) {
+  const { camera, raycaster, scene } = useThree()
+  const [firstPoint, setFirstPoint] = useState<THREE.Vector3 | null>(null)
+
+  useEffect(() => {
+    if (!measurementMode) {
+      setFirstPoint(null)
+    }
+  }, [measurementMode])
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (!measurementMode || !onAddMeasurement) return
+
+      const canvas = event.target as HTMLCanvasElement
+      const rect = canvas.getBoundingClientRect()
+      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+      raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
+
+      const meshes: THREE.Mesh[] = []
+      scene.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          meshes.push(child)
+        }
+      })
+
+      const intersects = raycaster.intersectObjects(meshes, false)
+
+      if (intersects.length > 0) {
+        const point = intersects[0].point
+
+        if (!firstPoint) {
+          setFirstPoint(point.clone())
+          console.log("[v0] First measurement point set:", point)
+        } else {
+          onAddMeasurement(firstPoint, point)
+          setFirstPoint(null)
+          console.log("[v0] Measurement added:", firstPoint, "to", point)
+        }
+      }
+    }
+
+    window.addEventListener("click", handleClick)
+    return () => window.removeEventListener("click", handleClick)
+  }, [measurementMode, firstPoint, camera, raycaster, scene, onAddMeasurement])
+
+  return null
 }
 
 export function ModelViewer({
@@ -126,12 +226,29 @@ export function ModelViewer({
   showDeviations,
   onAnalysisComplete,
   startAnalysis,
+  bimOpacity = 0.75,
+  scanOpacity = 0.7,
+  bimRenderMode = "solid",
+  scanRenderMode = "solid",
+  measurementMode = false,
+  measurements = [],
+  onAddMeasurement,
+  triggerAlignment = false,
 }: ModelViewerProps) {
   const bimModelRef = useRef<THREE.Object3D | null>(null)
   const scanModelRef = useRef<THREE.Object3D | null>(null)
   const [deviationData, setDeviationData] = useState<DeviationAnalysis | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const analysisCompletedRef = useRef(false)
+
+  useEffect(() => {
+    if (triggerAlignment && bimModelRef.current && scanModelRef.current) {
+      console.log("[v0] Triggering alignment...")
+      alignModels(bimModelRef.current, scanModelRef.current)
+      alignToGround(bimModelRef.current)
+      alignToGround(scanModelRef.current)
+    }
+  }, [triggerAlignment])
 
   useEffect(() => {
     if (startAnalysis && bimModelRef.current && scanModelRef.current && !isAnalyzing && !analysisCompletedRef.current) {
@@ -205,20 +322,33 @@ export function ModelViewer({
           <LoadedModel
             file={bimFile}
             color="#3b82f6"
-            opacity={0.75}
+            opacity={bimOpacity}
             visible={showBim && !showDeviations}
+            renderMode={bimRenderMode}
             onLoad={handleBimLoad}
           />
           <LoadedModel
             file={scanFile}
             color="#f97316"
-            opacity={0.7}
+            opacity={scanOpacity}
             visible={showScan && !showDeviations}
+            renderMode={scanRenderMode}
             onLoad={handleScanLoad}
           />
 
           {showDeviations && deviationData && <DeviationHeatmap data={deviationData} />}
+
+          {measurements.map((measurement) => (
+            <MeasurementLine
+              key={measurement.id}
+              start={measurement.start}
+              end={measurement.end}
+              distance={measurement.distance}
+            />
+          ))}
         </Suspense>
+
+        {measurementMode && <ClickHandler measurementMode={measurementMode} onAddMeasurement={onAddMeasurement} />}
       </Canvas>
 
       {/* Управление */}
