@@ -52,8 +52,20 @@ export function extractPointsFromModel(object: THREE.Object3D): THREE.Vector3[] 
         for (let i = 0; i < positionAttribute.count; i++) {
           const point = new THREE.Vector3()
           point.fromBufferAttribute(positionAttribute, i)
-          point.applyMatrix4(matrix)
-          points.push(point)
+
+          // Проверяем что координаты валидные
+          if (isFinite(point.x) && isFinite(point.y) && isFinite(point.z)) {
+            point.applyMatrix4(matrix)
+
+            // Еще раз проверяем после трансформации
+            if (isFinite(point.x) && isFinite(point.y) && isFinite(point.z)) {
+              points.push(point)
+            } else {
+              console.warn("[v0] Invalid point after matrix transformation:", point)
+            }
+          } else {
+            console.warn("[v0] Invalid point coordinates:", point)
+          }
         }
       }
     }
@@ -115,6 +127,28 @@ export function compareModels(
   const scanPoints = extractPointsFromModel(scanObject)
 
   console.log(`[v0] BIM points: ${bimPoints.length}, Scan points: ${scanPoints.length}`)
+
+  if (bimPoints.length === 0 || scanPoints.length === 0) {
+    console.error("[v0] Cannot compare models: insufficient points", {
+      bimPoints: bimPoints.length,
+      scanPoints: scanPoints.length,
+    })
+
+    // Возвращаем пустой результат
+    return {
+      points: [],
+      statistics: {
+        totalPoints: 0,
+        okCount: 0,
+        warningCount: 0,
+        criticalCount: 0,
+        avgDeviation: 0,
+        maxDeviation: 0,
+        minDeviation: 0,
+      },
+      elements: [],
+    }
+  }
 
   // Упрощаем облака точек для ускорения вычислений
   const simplifiedBimPoints = simplifyPoints(bimPoints, sampleRate)

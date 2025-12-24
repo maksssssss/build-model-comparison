@@ -15,10 +15,36 @@ export function DeviationHeatmap({ data, opacity = 1 }: DeviationHeatmapProps) {
 
   const geometry = useMemo(() => {
     const deviations = data.points
-    const positions = new Float32Array(deviations.length * 3)
-    const colors = new Float32Array(deviations.length * 3)
 
-    deviations.forEach((deviation, i) => {
+    const validDeviations = deviations.filter((deviation) => {
+      const pos = deviation.position
+      const isValid =
+        pos &&
+        typeof pos.x === "number" &&
+        isFinite(pos.x) &&
+        typeof pos.y === "number" &&
+        isFinite(pos.y) &&
+        typeof pos.z === "number" &&
+        isFinite(pos.z)
+
+      if (!isValid) {
+        console.warn("[v0] Invalid position found:", pos)
+      }
+      return isValid
+    })
+
+    console.log(`[v0] Creating heatmap geometry: ${validDeviations.length} valid points out of ${deviations.length}`)
+
+    if (validDeviations.length === 0) {
+      console.error("[v0] No valid points for heatmap!")
+      // Возвращаем пустую геометрию
+      return new THREE.BufferGeometry()
+    }
+
+    const positions = new Float32Array(validDeviations.length * 3)
+    const colors = new Float32Array(validDeviations.length * 3)
+
+    validDeviations.forEach((deviation, i) => {
       positions[i * 3] = deviation.position.x
       positions[i * 3 + 1] = deviation.position.y
       positions[i * 3 + 2] = deviation.position.z
