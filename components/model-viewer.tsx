@@ -54,6 +54,7 @@ function LoadedModel({
   const [model, setModel] = useState<THREE.Object3D | null>(null)
   const [loading, setLoading] = useState(true)
   const loadedFileRef = useRef<string>("")
+  const pointsObjectsRef = useRef<THREE.Points[]>([])
 
   useEffect(() => {
     const fileKey = `${file.name}-${file.size}-${file.lastModified}`
@@ -108,50 +109,74 @@ function LoadedModel({
   }, [file])
 
   useEffect(() => {
-    if (model) {
-      model.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          const material = child.material as THREE.MeshStandardMaterial
-          if (material) {
-            material.color.set(color)
-            material.transparent = opacity < 1
-            material.opacity = opacity
-            material.wireframe = renderMode === "wireframe"
+    if (!model) return
+
+    pointsObjectsRef.current.forEach((pointsObj) => {
+      if (pointsObj.parent) {
+        pointsObj.parent.remove(pointsObj)
+      }
+      pointsObj.geometry.dispose()
+      if (pointsObj.material instanceof THREE.Material) {
+        pointsObj.material.dispose()
+      }
+    })
+    pointsObjectsRef.current = []
+
+    model.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const material = child.material as THREE.MeshStandardMaterial
+        if (material) {
+          material.color.set(color)
+          material.transparent = opacity < 1
+          material.opacity = opacity
+          material.wireframe = renderMode === "wireframe"
+        }
+
+        if (renderMode === "points" && child.geometry) {
+          child.visible = false
+          const pointsMaterial = new THREE.PointsMaterial({
+            color: color,
+            size: 0.05,
+            transparent: opacity < 1,
+            opacity: opacity,
+          })
+          const points = new THREE.Points(child.geometry, pointsMaterial)
+          points.position.copy(child.position)
+          points.rotation.copy(child.rotation)
+          points.scale.copy(child.scale)
+
+          if (child.parent) {
+            child.parent.add(points)
+            pointsObjectsRef.current.push(points)
           }
-        } else if (child instanceof THREE.Points) {
-          const material = child.material as THREE.PointsMaterial
-          if (material) {
-            material.color.set(color)
-            material.transparent = opacity < 1
-            material.opacity = opacity
-          }
+        } else {
+          child.visible = true
+        }
+      } else if (child instanceof THREE.Points) {
+        const material = child.material as THREE.PointsMaterial
+        if (material) {
+          material.color.set(color)
+          material.transparent = opacity < 1
+          material.opacity = opacity
+        }
+      }
+    })
+  }, [color, opacity, renderMode, model])
+
+  useEffect(() => {
+    return () => {
+      pointsObjectsRef.current.forEach((pointsObj) => {
+        if (pointsObj.parent) {
+          pointsObj.parent.remove(pointsObj)
+        }
+        pointsObj.geometry.dispose()
+        if (pointsObj.material instanceof THREE.Material) {
+          pointsObj.material.dispose()
         }
       })
-
-      if (renderMode === "points") {
-        model.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.geometry) {
-            const points = new THREE.Points(
-              child.geometry,
-              new THREE.PointsMaterial({
-                color: color,
-                size: 0.05,
-                transparent: opacity < 1,
-                opacity: opacity,
-              }),
-            )
-            points.position.copy(child.position)
-            points.rotation.copy(child.rotation)
-            points.scale.copy(child.scale)
-            child.visible = false
-            if (child.parent) {
-              child.parent.add(points)
-            }
-          }
-        })
-      }
+      pointsObjectsRef.current = []
     }
-  }, [color, opacity, renderMode, model])
+  }, [])
 
   if (loading || !model) {
     return null
