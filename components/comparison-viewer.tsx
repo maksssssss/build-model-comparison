@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Eye, EyeOff, Grid3x3, BarChart3, Ruler, Crosshair } from "lucide-react"
+import { ArrowLeft, Eye, EyeOff, Grid3x3, BarChart3, Ruler, Crosshair, XCircle } from "lucide-react"
 import { useState } from "react"
 import { ModelViewer } from "./model-viewer"
 import { DeviationPanel } from "./deviation-panel"
@@ -77,6 +77,13 @@ export function ComparisonViewer({ bimFile, scanFile, onReset }: ComparisonViewe
     setTimeout(() => setTriggerAlignment(false), 100)
   }
 
+  const handleExitAnalysis = () => {
+    console.log("[v0] Exiting analysis mode...")
+    setShowDeviations(false)
+    setDeviationData(null)
+    setIsAnalyzing(false)
+  }
+
   return (
     <div className="flex h-screen flex-col bg-background">
       {/* Header */}
@@ -138,12 +145,19 @@ export function ComparisonViewer({ bimFile, scanFile, onReset }: ComparisonViewe
             variant={showDeviations ? "default" : "outline"}
             size="sm"
             onClick={handleStartAnalysis}
-            disabled={isAnalyzing}
+            disabled={isAnalyzing || showDeviations}
             className="gap-2"
           >
             <BarChart3 className="h-4 w-4" />
-            {isAnalyzing ? "Анализ..." : showDeviations ? "Показать анализ" : "Анализировать"}
+            {isAnalyzing ? "Анализ..." : showDeviations ? "Режим анализа" : "Анализировать"}
           </Button>
+
+          {showDeviations && (
+            <Button variant="outline" size="sm" onClick={handleExitAnalysis} className="gap-2 bg-transparent">
+              <XCircle className="h-4 w-4" />
+              Вернуться к моделям
+            </Button>
+          )}
         </div>
       </header>
 

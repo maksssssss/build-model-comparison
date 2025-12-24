@@ -7,8 +7,8 @@ import * as THREE from "three"
 import { loadModelFromFile } from "@/lib/file-loaders"
 import { compareModels, type DeviationAnalysis } from "@/lib/model-comparison"
 import { alignModels, alignToGround } from "@/lib/model-alignment"
-import { DeviationHeatmap } from "./deviation-heatmap"
 import { MeasurementLine } from "./measurement-line"
+import { ColoredDeviationModel } from "./colored-deviation-model"
 
 interface Measurement {
   id: string
@@ -251,6 +251,13 @@ export function ModelViewer({
   }, [triggerAlignment])
 
   useEffect(() => {
+    if (!showDeviations) {
+      setDeviationData(null)
+      analysisCompletedRef.current = false
+    }
+  }, [showDeviations])
+
+  useEffect(() => {
     if (startAnalysis && bimModelRef.current && scanModelRef.current && !isAnalyzing && !analysisCompletedRef.current) {
       setIsAnalyzing(true)
       analysisCompletedRef.current = true
@@ -260,6 +267,20 @@ export function ModelViewer({
         try {
           const analysis = compareModels(bimModelRef.current!, scanModelRef.current!, 0.2)
           console.log("[v0] Analysis complete:", analysis.statistics)
+
+          const avgDeviation = analysis.statistics.avgDeviation
+          const maxDeviation = analysis.statistics.maxDeviation
+
+          if (avgDeviation > 5000 || maxDeviation > 10000) {
+            alert(
+              `⚠️ ВНИМАНИЕ: Слишком большие отклонения!\n\n` +
+                `Средние: ${avgDeviation.toFixed(0)} мм\n` +
+                `Максимум: ${maxDeviation.toFixed(0)} мм\n\n` +
+                `Возможно, вы загрузили модели разных зданий. ` +
+                `Для корректного сравнения убедитесь, что BIM-модель и 3D-скан относятся к одному объекту.`,
+            )
+          }
+
           setDeviationData(analysis)
 
           if (onAnalysisComplete) {
@@ -319,24 +340,35 @@ export function ModelViewer({
         {showGrid && <Grid args={[50, 50]} cellSize={1} cellColor="#6b7280" sectionColor="#3b82f6" fadeDistance={30} />}
 
         <Suspense fallback={null}>
-          <LoadedModel
-            file={bimFile}
-            color="#3b82f6"
-            opacity={bimOpacity}
-            visible={showBim && !showDeviations}
-            renderMode={bimRenderMode}
-            onLoad={handleBimLoad}
-          />
-          <LoadedModel
-            file={scanFile}
-            color="#f97316"
-            opacity={scanOpacity}
-            visible={showScan && !showDeviations}
-            renderMode={scanRenderMode}
-            onLoad={handleScanLoad}
-          />
-
-          {showDeviations && deviationData && <DeviationHeatmap data={deviationData} />}
+          {showDeviations && deviationData && bimModelRef.current ? (
+            <>
+              {showBim && (
+                <ColoredDeviationModel model={bimModelRef.current} deviationData={deviationData} modelType="bim" />
+              )}
+              {showScan && scanModelRef.current && (
+                <ColoredDeviationModel model={scanModelRef.current} deviationData={deviationData} modelType="scan" />
+              )}
+            </>
+          ) : (
+            <>
+              <LoadedModel
+                file={bimFile}
+                color="#3b82f6"
+                opacity={showDeviations ? 0.3 : bimOpacity}
+                visible={showBim}
+                renderMode={bimRenderMode}
+                onLoad={handleBimLoad}
+              />
+              <LoadedModel
+                file={scanFile}
+                color="#f97316"
+                opacity={showDeviations ? 0.3 : scanOpacity}
+                visible={showScan}
+                renderMode={scanRenderMode}
+                onLoad={handleScanLoad}
+              />
+            </>
+          )}
 
           {measurements.map((measurement) => (
             <MeasurementLine
@@ -383,19 +415,22 @@ export function ModelViewer({
 
       {showDeviations && deviationData && (
         <div className="pointer-events-none absolute bottom-4 right-4 rounded-lg bg-card/95 p-3 shadow-lg backdrop-blur-sm">
-          <p className="mb-2 text-xs font-semibold text-foreground">Тепловая карта отклонений:</p>
+          <p className="mb-2 text-xs font-semibold text-foreground">Цветовая карта отклонений:</p>
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded bg-chart-3" />
+              <div className="h-3 w-3 rounded bg-[#22c55e]" />
               <span className="text-xs text-muted-foreground">{"<"} 10 мм - норма</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded bg-chart-5" />
+              <div className="h-3 w-3 rounded bg-[#f97316]" />
               <span className="text-xs text-muted-foreground">10-30 мм - внимание</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded bg-destructive" />
+              <div className="h-3 w-3 rounded bg-[#ef4444]" />
               <span className="text-xs text-muted-foreground">{">"} 30 мм - критично</span>
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground italic">
+              <p>Цвета показаны непосредственно на моделях</p>
             </div>
           </div>
         </div>
