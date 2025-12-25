@@ -18,85 +18,101 @@ export function ARScene({ bimFile, position, rotation, scale, onModelTransform }
   const [isIOS, setIsIOS] = useState(false)
   const [isARSupported, setIsARSupported] = useState<boolean | null>(null)
   const [isARActive, setIsARActive] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [usdzUrl, setUsdzUrl] = useState<string | null>(null)
+  const [deviceInfo, setDeviceInfo] = useState("")
 
   useEffect(() => {
-    const checkDevice = () => {
-      const ua = navigator.userAgent
-      const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
-      setIsIOS(iOS)
+    const ua = navigator.userAgent
+    const platform = navigator.platform
+    const maxTouchPoints = navigator.maxTouchPoints
 
-      if (iOS) {
-        // iOS supports AR through Quick Look
-        setIsARSupported(true)
-      } else {
-        // Check WebXR support for Android
-        checkWebXRSupport()
-      }
+    // Проверяем различными способами
+    const isAppleDevice = /iPad|iPhone|iPod/.test(ua)
+    const isSafariOnMac = platform === "MacIntel" && maxTouchPoints > 1
+    const isMobileSafari = /Safari/.test(ua) && /Mobile/.test(ua)
+    const hasApplePlatform = /iPhone|iPad|iPod/.test(platform)
+
+    const iOS = isAppleDevice || isSafariOnMac || hasApplePlatform
+
+    const info = `UA: ${ua.substring(0, 50)}..., Platform: ${platform}, Touch: ${maxTouchPoints}, iOS: ${iOS}`
+    console.log("[v0] Device detection:", info)
+    setDeviceInfo(info)
+    setIsIOS(iOS)
+
+    if (iOS) {
+      console.log("[v0] iOS device confirmed - enabling Quick Look AR")
+      setIsARSupported(true)
+    } else {
+      console.log("[v0] Non-iOS device - checking WebXR")
+      checkWebXRSupport()
     }
-
-    const checkWebXRSupport = async () => {
-      try {
-        if (typeof navigator === "undefined" || !("xr" in navigator)) {
-          setIsARSupported(false)
-          return
-        }
-
-        const xr = navigator.xr as any
-        if (!xr || typeof xr.isSessionSupported !== "function") {
-          setIsARSupported(false)
-          return
-        }
-
-        const supported = await xr.isSessionSupported("immersive-ar")
-        setIsARSupported(supported)
-      } catch (error) {
-        console.log("[v0] WebXR not available")
-        setIsARSupported(false)
-      }
-    }
-
-    checkDevice()
   }, [])
 
-  useEffect(() => {
-    if (isIOS && bimFile) {
-      // For MVP, we'll use a placeholder USDZ conversion
-      // In production, you'd convert OBJ/IFC to USDZ on the server
-      console.log("[v0] iOS detected - Quick Look AR will be used")
-      // Placeholder: in real app, convert model to USDZ format
-      setUsdzUrl(URL.createObjectURL(bimFile))
+  const checkWebXRSupport = async () => {
+    try {
+      if (typeof navigator === "undefined" || !("xr" in navigator)) {
+        console.log("[v0] WebXR API not found in navigator")
+        setIsARSupported(false)
+        return
+      }
+
+      const xr = navigator.xr as any
+      if (!xr || typeof xr.isSessionSupported !== "function") {
+        console.log("[v0] WebXR isSessionSupported method not available")
+        setIsARSupported(false)
+        return
+      }
+
+      const supported = await xr.isSessionSupported("immersive-ar")
+      console.log("[v0] WebXR immersive-ar supported:", supported)
+      setIsARSupported(supported)
+    } catch (error) {
+      console.log("[v0] WebXR support check error:", error)
+      setIsARSupported(false)
     }
-  }, [isIOS, bimFile])
+  }
+
+  const openIOSAR = () => {
+    alert(
+      "iOS AR готов к работе!\n\n" +
+        "Текущий режим: preview с ручным выравниванием\n\n" +
+        "Для полного AR опыта:\n" +
+        "1. Конвертируйте BIM в USDZ через Reality Converter\n" +
+        "2. Загрузите USDZ файл\n" +
+        "3. Quick Look AR откроется автоматически",
+    )
+  }
 
   const startARSession = async () => {
+    console.log("[v0] Starting AR session, isIOS:", isIOS, "isARSupported:", isARSupported)
+
     if (!isARSupported) {
-      setErrorMessage("AR не поддерживается на этом устройстве")
+      alert("AR не поддерживается на этом устройстве")
       return
     }
 
     if (isIOS) {
-      setErrorMessage("Используйте кнопку 'Открыть в AR' ниже для запуска Quick Look AR")
+      openIOSAR()
       return
     }
 
     // Android WebXR flow
     try {
+      console.log("[v0] Requesting WebXR immersive-ar session")
       const xr = navigator.xr as any
       const session = await xr.requestSession("immersive-ar", {
         requiredFeatures: ["hit-test"],
         optionalFeatures: ["dom-overlay"],
       })
+      console.log("[v0] WebXR session started successfully")
       setIsARActive(true)
-      setErrorMessage(null)
 
       session.addEventListener("end", () => {
+        console.log("[v0] WebXR session ended")
         setIsARActive(false)
       })
     } catch (error) {
       console.error("[v0] Failed to start AR session:", error)
-      setErrorMessage("Не удалось запустить AR режим")
+      alert("Не удалось запустить AR режим: " + (error as Error).message)
     }
   }
 
@@ -106,46 +122,33 @@ export function ARScene({ bimFile, position, rotation, scale, onModelTransform }
         {isARSupported === null ? (
           <div className="rounded-lg bg-muted px-6 py-3 text-sm text-muted-foreground">Проверка поддержки AR...</div>
         ) : isARSupported ? (
-          <>
-            {isIOS ? (
-              <div className="flex flex-col gap-2 items-center">
-                <div className="rounded-lg bg-green-500/10 border border-green-500/20 px-4 py-2 text-sm text-green-700">
-                  iPhone AR поддерживается через Quick Look
-                </div>
-                <a
-                  href={usdzUrl || "#"}
-                  rel="ar"
-                  className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-lg hover:bg-primary/90"
-                >
-                  <img
-                    src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' strokeWidth='2'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'%3E%3C/path%3E%3C/svg%3E"
-                    alt="AR"
-                    className="mr-2 h-5 w-5"
-                  />
-                  Открыть в AR (Quick Look)
-                </a>
-                <p className="text-xs text-muted-foreground max-w-xs text-center">
-                  Нажмите кнопку, чтобы открыть модель в нативном AR режиме iOS
-                </p>
-              </div>
-            ) : (
-              <Button onClick={startARSession} disabled={isARActive} size="lg" className="shadow-lg">
-                {isARActive ? "AR Активен" : "Запустить AR (WebXR)"}
-              </Button>
-            )}
-          </>
+          <div className="flex flex-col gap-2 items-center">
+            <div className="rounded-lg bg-green-500/10 border border-green-500/20 px-4 py-2 text-sm text-green-700 text-center max-w-md">
+              {isIOS ? "✓ iPhone/iPad AR доступен" : "✓ Android AR доступен"}
+            </div>
+            <Button onClick={startARSession} size="lg" className="shadow-lg">
+              {isIOS ? "Открыть в AR" : isARActive ? "AR Активен" : "Запустить AR"}
+            </Button>
+            <p className="text-xs text-muted-foreground max-w-xs text-center px-4">
+              {isIOS ? "Используйте контроллы ниже для выравнивания модели" : "Нажмите для входа в AR режим"}
+            </p>
+            <details className="text-xs text-muted-foreground max-w-md">
+              <summary className="cursor-pointer">Показать диагностику</summary>
+              <pre className="mt-2 p-2 bg-muted rounded text-[10px] overflow-auto">{deviceInfo}</pre>
+            </details>
+          </div>
         ) : (
-          <div className="rounded-lg bg-muted px-6 py-3 text-sm text-muted-foreground">
-            AR режим доступен только на мобильных устройствах iOS или Android с ARCore
+          <div className="flex flex-col gap-2 items-center max-w-md">
+            <div className="rounded-lg bg-muted px-6 py-3 text-sm text-muted-foreground text-center">
+              AR не поддерживается на этом устройстве
+            </div>
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer">Показать диагностику</summary>
+              <pre className="mt-2 p-2 bg-muted rounded text-[10px] overflow-auto">{deviceInfo}</pre>
+            </details>
           </div>
         )}
       </div>
-
-      {errorMessage && (
-        <div className="absolute left-1/2 top-32 z-10 -translate-x-1/2 max-w-sm rounded-lg bg-blue-500/90 px-6 py-3 text-sm text-white text-center">
-          {errorMessage}
-        </div>
-      )}
 
       {/* 3D Canvas */}
       <Canvas camera={{ position: [0, 1.6, 3], fov: 75 }} gl={{ alpha: true }} className="h-full w-full">
