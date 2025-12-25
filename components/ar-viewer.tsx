@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { X, Camera } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -25,19 +25,19 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
   const [currentPointId, setCurrentPointId] = useState<string | null>(null)
   const [currentMode, setCurrentMode] = useState<"model" | "real" | null>(null)
 
-  const checkARSupport = () => {
-    if (!("xr" in navigator)) {
-      setIsARSupported(false)
+  useEffect(() => {
+    const checkARSupport = () => {
+      if (!("xr" in navigator)) {
+        setIsARSupported(false)
+      }
     }
-  }
 
-  const loadARModel = async () => {
-    setTimeout(() => {
-      setIsLoading(false)
-    }, 2000)
-  }
+    const loadARModel = async () => {
+      setTimeout(() => {
+        setIsLoading(false)
+      }, 2000)
+    }
 
-  useState(() => {
     checkARSupport()
     loadARModel()
   }, [])
@@ -68,7 +68,6 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
     setCurrentPointId(id)
     setCurrentMode("model")
     setIsSettingPoint(true)
-    // In real implementation, would enable click-to-select on model
     setTimeout(() => {
       setReferencePoints(
         referencePoints.map((p) =>
@@ -90,7 +89,6 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
     setCurrentPointId(id)
     setCurrentMode("real")
     setIsSettingPoint(true)
-    // In real implementation, would use hit-test in AR
     setTimeout(() => {
       setReferencePoints(
         referencePoints.map((p) =>
@@ -109,11 +107,9 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
   }
 
   const handleAlign = () => {
-    // Calculate transformation based on reference points
     const completePoints = referencePoints.filter((p) => p.modelPosition && p.realPosition)
 
     if (completePoints.length >= 2) {
-      // Simple alignment: use first point for position, second for rotation
       const firstModel = completePoints[0].modelPosition!
       const firstReal = completePoints[0].realPosition!
 
