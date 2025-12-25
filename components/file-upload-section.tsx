@@ -58,8 +58,12 @@ export function FileUploadSection({
                 <FileText className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-foreground">BIM-модель (Проект)</h3>
-                <p className="text-xs text-muted-foreground">IFC, OBJ, FBX, GLB</p>
+                <h3 className="text-sm font-semibold text-foreground">
+                  {mode === "ar" ? "BIM-модель для AR" : "BIM-модель (Проект)"}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {mode === "ar" ? "USDZ (iOS) или GLB (Android)" : "IFC, OBJ, FBX, GLB"}
+                </p>
               </div>
             </div>
           </div>
@@ -77,7 +81,7 @@ export function FileUploadSection({
                   ref={bimInputRef}
                   type="file"
                   className="hidden"
-                  accept=".ifc,.obj,.fbx,.glb,.gltf"
+                  accept={mode === "ar" ? ".usdz,.glb,.gltf" : ".ifc,.obj,.fbx,.glb,.gltf"}
                   onChange={(e) => {
                     const file = e.target.files?.[0]
                     if (file) onBimFileChange(file)

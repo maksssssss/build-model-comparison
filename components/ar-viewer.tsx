@@ -27,19 +27,20 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
 
   useEffect(() => {
     const checkARSupport = () => {
-      if (!("xr" in navigator)) {
+      const userAgent = navigator.userAgent.toLowerCase()
+      const isIOS = /iphone|ipad|ipod/.test(userAgent)
+      const isAndroid = /android/.test(userAgent)
+
+      // iOS supports AR Quick Look, Android supports model-viewer
+      if (isIOS || isAndroid) {
+        setIsARSupported(true)
+      } else {
         setIsARSupported(false)
       }
     }
 
-    const loadARModel = async () => {
-      setTimeout(() => {
-        setIsLoading(false)
-      }, 2000)
-    }
-
     checkARSupport()
-    loadARModel()
+    setIsLoading(false)
   }, [])
 
   const handleReset = () => {
