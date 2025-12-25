@@ -117,9 +117,9 @@ export function ARScene({ bimFile, position, rotation, scale, onModelTransform }
   if (!isARFile) {
     return (
       <div className="relative h-full w-full">
-        <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 max-w-md px-4">
+        <div className="absolute left-4 top-4 z-10 max-w-xs">
           <Alert className="bg-amber-50 border-amber-200">
-            <AlertDescription className="text-amber-800 text-sm">
+            <AlertDescription className="text-amber-800 text-xs">
               <strong>Формат не поддерживает AR:</strong> Для iOS требуется USDZ, для Android - GLB/GLTF. Используйте
               режим preview для ручного выравнивания.
             </AlertDescription>
@@ -151,10 +151,10 @@ export function ARScene({ bimFile, position, rotation, scale, onModelTransform }
 
   return (
     <div className="relative h-full w-full">
-      <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 max-w-md px-4">
-        <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-4 py-3 text-sm text-blue-700 text-center backdrop-blur-sm">
-          <div className="font-semibold mb-1">AR Preview Режим</div>
-          <p className="text-xs">Используйте контроллы ниже для ручного выравнивания модели</p>
+      <div className="absolute left-4 top-4 z-10 max-w-xs">
+        <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-xs text-blue-700 backdrop-blur-sm">
+          <div className="font-semibold mb-0.5">AR Preview Режим</div>
+          <p className="text-xs">Используйте контроллы для выравнивания</p>
         </div>
       </div>
 
