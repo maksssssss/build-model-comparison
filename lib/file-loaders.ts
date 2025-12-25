@@ -262,6 +262,8 @@ export async function loadModelFromFile(file: File): Promise<THREE.Object3D> {
   })
 }
 
+export const loadModelFile = loadModelFromFile
+
 /**
  * Проверяет поддержку формата
  */

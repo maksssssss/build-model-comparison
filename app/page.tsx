@@ -3,16 +3,28 @@
 import { useState } from "react"
 import { FileUploadSection } from "@/components/file-upload-section"
 import { ComparisonViewer } from "@/components/comparison-viewer"
+import { ARViewer } from "@/components/ar-viewer"
 import { Cable as Cube, Layers } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function HomePage() {
   const [bimFile, setBimFile] = useState<File | null>(null)
   const [scanFile, setScanFile] = useState<File | null>(null)
   const [isComparing, setIsComparing] = useState(false)
+  const [isARMode, setIsARMode] = useState(false)
+  const [activeTab, setActiveTab] = useState<"compare" | "ar">("compare")
 
   const handleCompare = () => {
     if (bimFile && scanFile) {
       setIsComparing(true)
+      setIsARMode(false)
+    }
+  }
+
+  const handleARMode = () => {
+    if (bimFile) {
+      setIsARMode(true)
+      setIsComparing(false)
     }
   }
 
@@ -20,6 +32,11 @@ export default function HomePage() {
     setBimFile(null)
     setScanFile(null)
     setIsComparing(false)
+    setIsARMode(false)
+  }
+
+  if (isARMode && bimFile) {
+    return <ARViewer bimFile={bimFile} onExit={handleReset} />
   }
 
   if (isComparing && bimFile && scanFile) {
@@ -42,7 +59,7 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Cube className="h-4 w-4" />
-            <span className="font-mono">v1.0</span>
+            <span className="font-mono">v2.0</span>
           </div>
         </div>
       </header>
@@ -54,19 +71,40 @@ export default function HomePage() {
           <div className="mb-12 text-center">
             <h2 className="mb-4 text-4xl font-bold tracking-tight text-foreground">Сравните проект с реальностью</h2>
             <p className="mx-auto max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Загрузите BIM-модель из Archicad и 3D-скан здания. Система автоматически найдет и покажет все отклонения
-              от проекта.
+              Загрузите BIM-модель из Archicad и 3D-скан здания. Или используйте AR режим для наложения модели на
+              реальный объект через камеру.
             </p>
           </div>
 
-          {/* Upload Section */}
-          <FileUploadSection
-            bimFile={bimFile}
-            scanFile={scanFile}
-            onBimFileChange={setBimFile}
-            onScanFileChange={setScanFile}
-            onCompare={handleCompare}
-          />
+          {/* Tabs for different modes */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "compare" | "ar")} className="mb-8">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="compare">Режим сравнения</TabsTrigger>
+              <TabsTrigger value="ar">AR Режим</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="compare" className="mt-8">
+              <FileUploadSection
+                bimFile={bimFile}
+                scanFile={scanFile}
+                onBimFileChange={setBimFile}
+                onScanFileChange={setScanFile}
+                onCompare={handleCompare}
+                mode="compare"
+              />
+            </TabsContent>
+
+            <TabsContent value="ar" className="mt-8">
+              <FileUploadSection
+                bimFile={bimFile}
+                scanFile={null}
+                onBimFileChange={setBimFile}
+                onScanFileChange={() => {}}
+                onCompare={handleARMode}
+                mode="ar"
+              />
+            </TabsContent>
+          </Tabs>
 
           {/* Features */}
           <div className="mt-16 grid gap-6 md:grid-cols-3">
