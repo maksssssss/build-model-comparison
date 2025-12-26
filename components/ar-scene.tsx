@@ -1,182 +1,178 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Canvas } from "@react-three/fiber"
 import { Suspense } from "react"
 import { LoadedARModel } from "./loaded-ar-model"
-import { OrbitControls, Grid } from "@react-three/drei"
-import { Camera, ExternalLink } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { OrbitControls, Grid, PerspectiveCamera } from "@react-three/drei"
+import { Camera, Loader2, Check, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ARControls } from "./ar-controls"
 
 interface ARSceneProps {
-  bimFile: File
-  position: [number, number, number]
-  rotation: [number, number, number]
-  scale: number
-  onModelTransform: (position: [number, number, number], rotation: [number, number, number], scale: number) => void
+  bimFile: File // Changed from Blob to File to match model-viewer pattern
 }
 
-export function ARScene({ bimFile, position, rotation, scale, onModelTransform }: ARSceneProps) {
-  const [deviceType, setDeviceType] = useState<"ios" | "android" | "desktop">("desktop")
+export function ARScene({ bimFile }: ARSceneProps) {
   const [modelUrl, setModelUrl] = useState<string>("")
-  const [isARFile, setIsARFile] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [arReady, setArReady] = useState(false)
+  const [error, setError] = useState<string>("")
+  const [position, setPosition] = useState<[number, number, number]>([0, 0, -2])
+  const [rotation, setRotation] = useState<[number, number, number]>([0, 0, 0])
+  const [scale, setScale] = useState(1)
+  const modelViewerRef = useRef<any>(null)
 
   useEffect(() => {
-    const userAgent = navigator.userAgent.toLowerCase()
-    const isIOS = /iphone|ipad|ipod/.test(userAgent)
-    const isAndroid = /android/.test(userAgent)
-
-    if (isIOS) {
-      setDeviceType("ios")
-    } else if (isAndroid) {
-      setDeviceType("android")
-    } else {
-      setDeviceType("desktop")
-    }
-
     const fileExt = bimFile.name.split(".").pop()?.toLowerCase()
-    if (fileExt === "usdz" || fileExt === "glb" || fileExt === "gltf") {
-      setIsARFile(true)
+
+    if (fileExt === "glb" || fileExt === "gltf") {
       const url = URL.createObjectURL(bimFile)
       setModelUrl(url)
-    } else {
-      setIsARFile(false)
-    }
+      setLoading(false)
+      setArReady(true)
 
-    return () => {
-      if (modelUrl) {
-        URL.revokeObjectURL(modelUrl)
-      }
+      return () => URL.revokeObjectURL(url)
+    } else {
+      setError(`Формат .${fileExt} не поддерживается для AR. Используйте GLB или GLTF`)
+      setLoading(false)
     }
   }, [bimFile])
 
-  if (deviceType === "ios" && isARFile && bimFile.name.endsWith(".usdz")) {
+  const handleLaunchAR = () => {
+    const modelViewer = modelViewerRef.current
+    if (modelViewer) {
+      try {
+        // @ts-ignore
+        modelViewer.activateAR()
+      } catch (err) {
+        console.error("[v0] AR activation failed:", err)
+      }
+    }
+  }
+
+  const handleReset = () => {
+    setPosition([0, 0, -2])
+    setRotation([0, 0, 0])
+    setScale(1)
+  }
+
+  if (loading) {
     return (
-      <div className="relative h-full w-full bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
-        <div className="text-center px-6 max-w-md">
-          <div className="mb-6 flex justify-center">
-            <div className="rounded-full bg-blue-100 p-6">
-              <Camera className="h-16 w-16 text-blue-600" />
-            </div>
-          </div>
-
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">AR Ready!</h2>
-          <p className="text-gray-600 mb-6">Нажмите кнопку ниже чтобы открыть модель в режиме дополненной реальности</p>
-
-          <a
-            href={modelUrl}
-            rel="ar"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Camera className="h-5 w-5" />
-            Открыть в AR
-            <ExternalLink className="h-4 w-4" />
-          </a>
-
-          <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-xs text-gray-600">
-              <strong>Инструкция:</strong> После нажатия кнопки, наведите камеру на пол или горизонтальную поверхность.
-              Появится индикатор, где вы можете разместить модель.
-            </p>
-          </div>
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-white mx-auto" />
+          <p className="text-white text-sm">Загрузка модели...</p>
         </div>
       </div>
     )
   }
 
-  if (deviceType === "android" && isARFile && (bimFile.name.endsWith(".glb") || bimFile.name.endsWith(".gltf"))) {
+  if (error) {
     return (
-      <div className="relative h-full w-full">
-        <model-viewer
-          src={modelUrl}
-          ar
-          ar-modes="scene-viewer webxr quick-look"
-          camera-controls
-          shadow-intensity="1"
-          style={{ width: "100%", height: "100%" }}
-        >
-          <button
-            slot="ar-button"
-            className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Camera className="h-5 w-5" />
-            Активировать AR
-          </button>
-        </model-viewer>
-
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 max-w-md px-4">
-          <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-4 py-3 text-sm text-blue-700 text-center backdrop-blur-sm">
-            <div className="font-semibold mb-1">AR режим доступен</div>
-            <p className="text-xs">Нажмите кнопку "Активировать AR" для запуска камеры</p>
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="text-center space-y-4 max-w-sm">
+          <AlertCircle className="h-16 w-16 text-red-400 mx-auto" />
+          <div>
+            <p className="text-white font-semibold mb-2">Ошибка загрузки</p>
+            <p className="text-white/70 text-sm">{error}</p>
+          </div>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-left">
+            <p className="text-white text-xs font-semibold mb-2">Поддерживаемые форматы:</p>
+            <ul className="text-white/80 text-xs space-y-1">
+              <li>• GLB (рекомендуется)</li>
+              <li>• GLTF</li>
+            </ul>
           </div>
         </div>
-      </div>
-    )
-  }
-
-  if (!isARFile) {
-    return (
-      <div className="relative h-full w-full">
-        <div className="absolute left-4 top-4 z-10 max-w-xs">
-          <Alert className="bg-amber-50 border-amber-200">
-            <AlertDescription className="text-amber-800 text-xs">
-              <strong>Формат не поддерживает AR:</strong> Для iOS требуется USDZ, для Android - GLB/GLTF. Используйте
-              режим preview для ручного выравнивания.
-            </AlertDescription>
-          </Alert>
-        </div>
-
-        <Canvas camera={{ position: [0, 1.6, 3], fov: 75 }} gl={{ alpha: true }} className="h-full w-full">
-          <ambientLight intensity={0.7} />
-          <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
-          <hemisphereLight intensity={0.5} />
-
-          <Suspense fallback={null}>
-            <LoadedARModel
-              file={bimFile}
-              position={position}
-              rotation={rotation}
-              scale={scale}
-              onTransform={onModelTransform}
-              isARActive={false}
-            />
-          </Suspense>
-
-          <Grid args={[20, 20]} cellColor="#6b7280" sectionColor="#3b82f6" />
-          <OrbitControls makeDefault />
-        </Canvas>
       </div>
     )
   }
 
   return (
-    <div className="relative h-full w-full">
-      <div className="absolute left-4 top-4 z-10 max-w-xs">
-        <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-xs text-blue-700 backdrop-blur-sm">
-          <div className="font-semibold mb-0.5">AR Preview Режим</div>
-          <p className="text-xs">Используйте контроллы для выравнивания</p>
+    <>
+      <model-viewer
+        ref={modelViewerRef}
+        src={modelUrl}
+        ar
+        ar-modes="scene-viewer webxr"
+        camera-controls
+        shadow-intensity="1"
+        auto-rotate
+        autoplay
+        style={{
+          width: "100%",
+          height: "100%",
+          background: "linear-gradient(to bottom, #1a1a1a, #000000)",
+        }}
+      />
+
+      {arReady && (
+        <div className="absolute top-20 left-0 right-0 z-20 px-4 pointer-events-none">
+          <div className="bg-gradient-to-r from-green-600 to-blue-600 rounded-2xl p-4 shadow-2xl backdrop-blur-sm">
+            <div className="flex items-start gap-3">
+              <Check className="h-5 w-5 text-white flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-white font-bold text-sm">Модель готова к AR</p>
+                <p className="text-white/90 text-xs">
+                  Нажмите кнопку ниже чтобы открыть камеру и разместить модель в реальном мире
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      <Canvas camera={{ position: [0, 1.6, 3], fov: 75 }} gl={{ alpha: true }} className="h-full w-full">
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
-        <hemisphereLight intensity={0.5} />
+      {arReady && (
+        <div className="absolute bottom-32 left-0 right-0 z-30 px-6 pointer-events-none">
+          <Button
+            size="lg"
+            onClick={handleLaunchAR}
+            className="w-full h-16 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold text-lg rounded-2xl shadow-2xl pointer-events-auto active:scale-95 transition-transform"
+          >
+            <Camera className="mr-3 h-6 w-6" />
+            Запустить AR Камеру
+          </Button>
+        </div>
+      )}
 
-        <Suspense fallback={null}>
-          <LoadedARModel
-            file={bimFile}
-            position={position}
-            rotation={rotation}
-            scale={scale}
-            onTransform={onModelTransform}
-            isARActive={false}
-          />
+      <ARControls
+        position={position}
+        rotation={rotation}
+        scale={scale}
+        onPositionChange={setPosition}
+        onRotationChange={setRotation}
+        onScaleChange={setScale}
+        onReset={handleReset}
+      />
+
+      <Canvas shadows>
+        <PerspectiveCamera makeDefault position={[0, 1.6, 3]} fov={75} />
+        <OrbitControls makeDefault enableDamping dampingFactor={0.05} />
+
+        <ambientLight intensity={0.5} />
+        <directionalLight
+          position={[10, 10, 5]}
+          intensity={0.8}
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+        />
+        <hemisphereLight intensity={0.3} groundColor="#808080" color="#b8d4ff" />
+
+        <Suspense
+          fallback={
+            <mesh position={[0, 0.5, 0]}>
+              <boxGeometry args={[1, 1, 1]} />
+              <meshStandardMaterial color="#3b82f6" wireframe />
+            </mesh>
+          }
+        >
+          <LoadedARModel file={bimFile} position={position} rotation={rotation} scale={scale} />
         </Suspense>
 
-        <Grid args={[20, 20]} cellColor="#6b7280" sectionColor="#3b82f6" />
-        <OrbitControls makeDefault />
+        <Grid args={[20, 20]} cellColor="#6b7280" sectionColor="#3b82f6" fadeDistance={30} />
       </Canvas>
-    </div>
+    </>
   )
 }

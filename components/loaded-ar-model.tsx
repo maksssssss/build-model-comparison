@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import { loadModelFile } from "@/lib/file-loaders"
+import { loadModelFromFile } from "@/lib/file-loaders"
 import * as THREE from "three"
-import { useThree } from "@react-three/fiber"
 
 interface LoadedARModelProps {
   file: File
@@ -11,51 +10,52 @@ interface LoadedARModelProps {
   rotation: [number, number, number]
   scale: number
   onTransform: (position: [number, number, number], rotation: [number, number, number], scale: number) => void
-  isARActive: boolean
 }
 
-export function LoadedARModel({ file, position, rotation, scale, onTransform, isARActive }: LoadedARModelProps) {
+export function LoadedARModel({ file, position, rotation, scale, onTransform }: LoadedARModelProps) {
   const [model, setModel] = useState<THREE.Object3D | null>(null)
   const [loading, setLoading] = useState(true)
   const modelRef = useRef<THREE.Object3D>(null)
-  const { scene } = useThree()
 
-  // Load model
   useEffect(() => {
     let mounted = true
 
     const loadModel = async () => {
       try {
+        console.log(`[v0] Loading AR model: ${file.name}`)
         setLoading(true)
-        const loadedModel = await loadModelFile(file)
+
+        const loadedModel = await loadModelFromFile(file)
 
         if (!mounted) return
 
-        // Center and scale model
+        // Center model
         const box = new THREE.Box3().setFromObject(loadedModel)
         const center = box.getCenter(new THREE.Vector3())
         const size = box.getSize(new THREE.Vector3())
 
         loadedModel.position.sub(center)
 
+        // Auto-scale to reasonable size (2 units)
         const maxDim = Math.max(size.x, size.y, size.z)
         const initialScale = 2 / maxDim
         loadedModel.scale.setScalar(initialScale)
 
-        // Apply semi-transparent material for better AR visibility
         loadedModel.traverse((child) => {
           if (child instanceof THREE.Mesh) {
-            child.material = new THREE.MeshStandardMaterial({
-              color: 0x4a90e2,
-              transparent: true,
-              opacity: 0.6,
-              side: THREE.FrontSide,
-              roughness: 0.5,
-              metalness: 0.2,
-            })
+            const material = child.material as THREE.MeshStandardMaterial
+            if (material) {
+              material.transparent = true
+              material.opacity = 0.7
+              material.side = THREE.FrontSide
+              material.roughness = 0.6
+              material.metalness = 0.2
+              material.color.set(0x4a90e2) // Blue tint for AR overlay
+            }
           }
         })
 
+        console.log(`[v0] AR model loaded successfully: ${file.name}`)
         setModel(loadedModel)
         setLoading(false)
       } catch (error) {
@@ -90,7 +90,16 @@ export function LoadedARModel({ file, position, rotation, scale, onTransform, is
     }
   }, [model, onTransform])
 
-  if (loading || !model) {
+  if (loading) {
+    return (
+      <mesh position={[0, 0.5, 0]}>
+        <boxGeometry args={[0.5, 0.5, 0.5]} />
+        <meshStandardMaterial color="#3b82f6" wireframe />
+      </mesh>
+    )
+  }
+
+  if (!model) {
     return null
   }
 
