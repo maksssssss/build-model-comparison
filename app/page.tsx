@@ -1,9 +1,21 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { FileUploadSection } from "@/components/file-upload-section"
 import { ComparisonViewer } from "@/components/comparison-viewer"
-import { ARViewer } from "@/components/ar-viewer"
+
+const ARViewer = dynamic(() => import("@/components/ar-viewer").then((mod) => mod.ARViewer), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-screen w-screen items-center justify-center bg-background">
+      <div className="text-center">
+        <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Инициализация AR режима...</p>
+      </div>
+    </div>
+  ),
+})
 import { Cable as Cube, Layers } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
@@ -99,7 +111,7 @@ export default function HomePage() {
                 bimFile={bimFile}
                 scanFile={null}
                 onBimFileChange={setBimFile}
-                onScanFileChange={() => {}}
+                onScanFileChange={() => { }}
                 onCompare={handleARMode}
                 mode="ar"
               />
