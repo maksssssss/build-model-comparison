@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { Canvas } from "@react-three/fiber"
-import { Suspense } from "react"
 import { LoadedARModel } from "./loaded-ar-model"
 import { OrbitControls, Grid } from "@react-three/drei"
 import { Camera, ExternalLink } from "lucide-react"

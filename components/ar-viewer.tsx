@@ -163,18 +163,22 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-background">
-      {/* Header */}
-      <div className="absolute left-0 right-0 top-0 z-10 border-b border-border bg-card/95 backdrop-blur">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Camera className="h-5 w-5 text-primary" />
-            <div>
-              <h2 className="font-semibold text-foreground">AR Режим</h2>
-              <p className="text-xs text-muted-foreground">{bimFile.name}</p>
+    <div className="fixed inset-0 z-50 bg-black">
+      <div className="absolute left-0 right-0 top-0 z-30 bg-gradient-to-b from-black/80 to-transparent">
+        <div className="flex items-center justify-between px-3 py-3 safe-top">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="flex-shrink-0 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white">AR Режим</p>
+              <p className="text-xs text-white/70 truncate">{bimFile.name}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onExit}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-10 w-10 p-0 flex-shrink-0 text-white hover:bg-white/20"
+            onClick={onExit}
+          >
             <X className="h-5 w-5" />
           </Button>
         </div>
