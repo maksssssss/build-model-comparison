@@ -12,12 +12,23 @@ interface LoadedARModelProps {
   scale: number
   onTransform: (position: [number, number, number], rotation: [number, number, number], scale: number) => void
   isARActive: boolean
+  onPointerDown?: (point: [number, number, number]) => void
+  referencePoints?: { id: string; modelPosition: [number, number, number] | null; name: string }[]
 }
 
-export function LoadedARModel({ file, position, rotation, scale, onTransform, isARActive }: LoadedARModelProps) {
+export function LoadedARModel({
+  file,
+  position,
+  rotation,
+  scale,
+  onTransform,
+  isARActive,
+  onPointerDown,
+  referencePoints = []
+}: LoadedARModelProps) {
   const [model, setModel] = useState<THREE.Object3D | null>(null)
   const [loading, setLoading] = useState(true)
-  const modelRef = useRef<THREE.Object3D>(null)
+  const modelRef = useRef<THREE.Group>(null)
   const { scene } = useThree()
 
   // Load model
@@ -49,7 +60,7 @@ export function LoadedARModel({ file, position, rotation, scale, onTransform, is
               color: 0x4a90e2,
               transparent: true,
               opacity: 0.6,
-              side: THREE.FrontSide,
+              side: THREE.DoubleSide,
               roughness: 0.5,
               metalness: 0.2,
             })
@@ -71,28 +82,32 @@ export function LoadedARModel({ file, position, rotation, scale, onTransform, is
     }
   }, [file])
 
-  useEffect(() => {
-    if (modelRef.current) {
-      modelRef.current.position.set(...position)
-      modelRef.current.rotation.set(...rotation)
-      modelRef.current.scale.setScalar(scale)
-    }
-  }, [position, rotation, scale])
-
-  // Update transform callback
-  useEffect(() => {
-    if (modelRef.current) {
-      const pos = modelRef.current.position
-      const rot = modelRef.current.rotation
-      const modelScale = modelRef.current.scale.x
-
-      onTransform([pos.x, pos.y, pos.z], [rot.x, rot.y, rot.z], modelScale)
-    }
-  }, [model, onTransform])
-
   if (loading || !model) {
     return null
   }
 
-  return <primitive ref={modelRef} object={model} />
+  const handlePointerDown = (e: any) => {
+    e.stopPropagation()
+    if (onPointerDown) {
+      const point = e.point
+      // Convert world point to local point if needed, but here we probably want world point in scene coords
+      onPointerDown([point.x, point.y, point.z])
+    }
+  }
+
+  return (
+    <group ref={modelRef} position={position} rotation={rotation} scale={scale}>
+      <primitive
+        object={model}
+        onPointerDown={handlePointerDown}
+      />
+      {/* Render Markers for reference points */}
+      {referencePoints.map((p) => p.modelPosition && (
+        <mesh key={p.id} position={p.modelPosition}>
+          <sphereGeometry args={[0.05, 16, 16]} />
+          <meshStandardMaterial color="red" />
+        </mesh>
+      ))}
+    </group>
+  )
 }

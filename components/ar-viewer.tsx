@@ -65,25 +65,28 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
     setReferencePoints(referencePoints.filter((p) => p.id !== id))
   }
 
-  const handleSetModelPosition = (id: string, pos: [number, number, number]) => {
+  const handleSetModelPosition = (id: string) => {
     setCurrentPointId(id)
     setCurrentMode("model")
     setIsSettingPoint(true)
-    setTimeout(() => {
+  }
+
+  const handlePointSelect = (pos: [number, number, number]) => {
+    if (isSettingPoint && currentPointId && currentMode === "model") {
       setReferencePoints(
         referencePoints.map((p) =>
-          p.id === id
+          p.id === currentPointId
             ? {
-                ...p,
-                modelPosition: pos,
-              }
+              ...p,
+              modelPosition: pos,
+            }
             : p,
         ),
       )
       setIsSettingPoint(false)
       setCurrentPointId(null)
       setCurrentMode(null)
-    }, 100)
+    }
   }
 
   const handleSetRealPosition = (id: string, pos: [number, number, number]) => {
@@ -95,9 +98,9 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
         referencePoints.map((p) =>
           p.id === id
             ? {
-                ...p,
-                realPosition: pos,
-              }
+              ...p,
+              realPosition: pos,
+            }
             : p,
         ),
       )
@@ -111,12 +114,51 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
     const completePoints = referencePoints.filter((p) => p.modelPosition && p.realPosition)
 
     if (completePoints.length >= 2) {
+      const m1 = completePoints[0].modelPosition!
+      const m2 = completePoints[1].modelPosition!
+      const r1 = completePoints[0].realPosition!
+      const r2 = completePoints[1].realPosition!
+
+      // 1. Calculate rotation around Y axis
+      // Model direction vector in XZ plane
+      const dMx = m2[0] - m1[0]
+      const dMz = m2[2] - m1[2]
+      const angleM = Math.atan2(dMz, dMx)
+
+      // Real direction vector in XZ plane
+      const dRx = r2[0] - r1[0]
+      const dRz = r2[2] - r1[2]
+      const angleR = Math.atan2(dRz, dRx)
+
+      const theta = angleR - angleM
+
+      // 2. Apply rotation to get new orientation
+      const newRotation: [number, number, number] = [0, theta, 0]
+
+      // 3. Calculate position to match the first point
+      // Rotate m1 around Y by theta
+      const cosT = Math.cos(theta)
+      const sinT = Math.sin(theta)
+      const rotatedM1x = m1[0] * cosT - m1[2] * sinT
+      const rotatedM1z = m1[0] * sinT + m1[2] * cosT
+
+      const newPosition: [number, number, number] = [
+        r1[0] - rotatedM1x,
+        r1[1] - m1[1], // Height alignment
+        r1[2] - rotatedM1z
+      ]
+
+      setPosition(newPosition)
+      setRotation(newRotation)
+      setScale(1) // Keep scale for now, can be calculated from distances if needed
+
+      console.log("[v0] Aligned model using 2-point rotation and translation")
+    } else if (completePoints.length === 1) {
       const firstModel = completePoints[0].modelPosition!
       const firstReal = completePoints[0].realPosition!
 
       setPosition([firstReal[0] - firstModel[0], firstReal[1] - firstModel[1], firstReal[2] - firstModel[2]])
-
-      console.log("[v0] Aligned model using reference points")
+      console.log("[v0] Aligned model using 1-point translation only")
     }
   }
 
@@ -168,6 +210,8 @@ export function ARViewer({ bimFile, onExit }: ARViewerProps) {
                 setRotation(rot)
                 setScale(s)
               }}
+              onPointSelect={handlePointSelect}
+              referencePoints={referencePoints}
             />
             <ARControls
               position={position}

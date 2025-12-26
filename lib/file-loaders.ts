@@ -1,4 +1,8 @@
 import * as THREE from "three"
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader"
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader"
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader"
+import { IFCLoader } from "web-ifc-three/IFCLoader"
 
 /**
  * Улучшенный парсер OBJ файлов с поддержкой граней и нормалей
@@ -139,127 +143,98 @@ function parsePLY(text: string): THREE.BufferGeometry {
 }
 
 /**
- * Создает демо-модель здания для тестирования
- */
-function createDemoBuilding(): THREE.Object3D {
-  const group = new THREE.Group()
-
-  // Основное здание
-  const buildingGeometry = new THREE.BoxGeometry(10, 5, 8)
-  const buildingMaterial = new THREE.MeshStandardMaterial({
-    color: 0x888888,
-  })
-  const building = new THREE.Mesh(buildingGeometry, buildingMaterial)
-  building.position.y = 2.5
-
-  // Крыша
-  const roofGeometry = new THREE.ConeGeometry(7, 2, 4)
-  const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x663333 })
-  const roof = new THREE.Mesh(roofGeometry, roofMaterial)
-  roof.position.y = 6
-  roof.rotation.y = Math.PI / 4
-
-  // Окна
-  const windowGeometry = new THREE.BoxGeometry(1, 1.5, 0.2)
-  const windowMaterial = new THREE.MeshStandardMaterial({ color: 0x4488ff })
-
-  for (let i = 0; i < 3; i++) {
-    const window1 = new THREE.Mesh(windowGeometry, windowMaterial)
-    window1.position.set(-3 + i * 3, 2, 4.1)
-    group.add(window1)
-  }
-
-  group.add(building, roof)
-  return group
-}
-
-/**
  * Загружает 3D-модель из файла
  */
 export async function loadModelFromFile(file: File): Promise<THREE.Object3D> {
   const extension = file.name.split(".").pop()?.toLowerCase()
+  const url = URL.createObjectURL(file)
 
   console.log(`[v0] Loading file: ${file.name} (${extension})`)
 
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
+  try {
+    return await new Promise((resolve, reject) => {
+      switch (extension) {
+        case "glb":
+        case "gltf": {
+          const loader = new GLTFLoader()
+          loader.load(url, (gltf) => {
+            URL.revokeObjectURL(url)
+            resolve(gltf.scene)
+          }, undefined, reject)
+          break
+        }
 
-    reader.onload = async (event) => {
-      const data = event.target?.result
+        case "fbx": {
+          const loader = new FBXLoader()
+          loader.load(url, (object) => {
+            URL.revokeObjectURL(url)
+            resolve(object)
+          }, undefined, reject)
+          break
+        }
 
-      if (!data) {
-        reject(new Error("Не удалось прочитать файл"))
-        return
-      }
+        case "stl": {
+          const loader = new STLLoader()
+          loader.load(url, (geometry) => {
+            URL.revokeObjectURL(url)
+            const material = new THREE.MeshStandardMaterial({ color: 0x888888 })
+            resolve(new THREE.Mesh(geometry, material))
+          }, undefined, reject)
+          break
+        }
 
-      try {
-        let object: THREE.Object3D
+        case "ifc": {
+          const loader = new IFCLoader()
+          // Настройка пути к WASM файлам web-ifc
+          loader.ifcManager.setWasmPath("https://unpkg.com/web-ifc@0.0.36/")
+          loader.load(url, (object) => {
+            URL.revokeObjectURL(url)
+            resolve(object)
+          }, undefined, reject)
+          break
+        }
 
-        switch (extension) {
-          case "obj": {
-            // Парсим OBJ как текст
-            const geometry = parseOBJ(data as string)
-            const material = new THREE.MeshStandardMaterial({
-              color: 0x888888,
-              side: THREE.FrontSide,
-              flatShading: false,
-            })
-            object = new THREE.Mesh(geometry, material)
-            break
+        case "obj": {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            const text = e.target?.result as string
+            const geometry = parseOBJ(text)
+            const material = new THREE.MeshStandardMaterial({ color: 0x888888 })
+            URL.revokeObjectURL(url)
+            resolve(new THREE.Mesh(geometry, material))
           }
+          reader.onerror = reject
+          reader.readAsText(file)
+          break
+        }
 
-          case "ply": {
-            // Парсим PLY как текст (если ASCII)
-            const text = typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer)
+        case "ply": {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            const text = typeof e.target?.result === "string" ? e.target?.result : new TextDecoder().decode(e.target?.result as ArrayBuffer)
             const geometry = parsePLY(text)
             const material = new THREE.PointsMaterial({
               size: 0.02,
-              vertexColors: geometry.attributes.color ? true : false,
-              color: geometry.attributes.color ? 0xffffff : 0xff8800,
+              vertexColors: !!geometry.attributes.color
             })
-            object = new THREE.Points(geometry, material)
-            break
+            URL.revokeObjectURL(url)
+            resolve(new THREE.Points(geometry, material))
           }
-
-          case "ifc":
-          case "glb":
-          case "gltf":
-          case "fbx":
-          case "pcd":
-          case "e57":
-            // Для этих форматов создаем демо-модель
-            console.log(`[v0] Format ${extension} - using demo model`)
-            object = createDemoBuilding()
-            break
-
-          default:
-            reject(new Error(`Неподдерживаемый формат: ${extension}`))
-            return
+          reader.onerror = reject
+          reader.readAsText(file)
+          break
         }
 
-        object.name = file.name
-        console.log(`[v0] Successfully loaded ${file.name}`)
-        resolve(object)
-      } catch (error) {
-        console.error(`[v0] Error loading file:`, error)
-        // При ошибке возвращаем демо-модель
-        resolve(createDemoBuilding())
+        default:
+          URL.revokeObjectURL(url)
+          reject(new Error(`Неподдерживаемый формат: ${extension}`))
       }
-    }
-
-    reader.onerror = () => {
-      console.error(`[v0] File read error`)
-      // При ошибке возвращаем демо-модель
-      resolve(createDemoBuilding())
-    }
-
-    // Читаем как текст для OBJ и PLY
-    if (extension === "obj" || extension === "ply") {
-      reader.readAsText(file)
-    } else {
-      reader.readAsArrayBuffer(file)
-    }
-  })
+    })
+  } catch (error) {
+    console.error(`[v0] Error loading file:`, error)
+    URL.revokeObjectURL(url)
+    throw error
+  }
 }
 
 export const loadModelFile = loadModelFromFile
@@ -269,7 +244,7 @@ export const loadModelFile = loadModelFromFile
  */
 export function isSupportedFormat(fileName: string): boolean {
   const extension = fileName.split(".").pop()?.toLowerCase()
-  return ["glb", "gltf", "obj", "ply", "fbx", "ifc", "pcd", "e57"].includes(extension || "")
+  return ["glb", "gltf", "obj", "ply", "fbx", "ifc", "stl", "pcd", "e57"].includes(extension || "")
 }
 
 /**

@@ -14,9 +14,11 @@ interface ARSceneProps {
   rotation: [number, number, number]
   scale: number
   onModelTransform: (position: [number, number, number], rotation: [number, number, number], scale: number) => void
+  onPointSelect?: (point: [number, number, number]) => void
+  referencePoints?: { id: string; modelPosition: [number, number, number] | null; name: string }[]
 }
 
-export function ARScene({ bimFile, position, rotation, scale, onModelTransform }: ARSceneProps) {
+export function ARScene({ bimFile, position, rotation, scale, onModelTransform, onPointSelect, referencePoints }: ARSceneProps) {
   const [deviceType, setDeviceType] = useState<"ios" | "android" | "desktop">("desktop")
   const [modelUrl, setModelUrl] = useState<string>("")
   const [isARFile, setIsARFile] = useState(false)
@@ -84,7 +86,7 @@ export function ARScene({ bimFile, position, rotation, scale, onModelTransform }
     )
   }
 
-  if (deviceType === "android" && isARFile && (bimFile.name.endsWith(".glb") || bimFile.name.endsWith(".gltf"))) {
+  if (deviceType === "android" && isARFile) {
     return (
       <div className="relative h-full w-full">
         <model-viewer
@@ -93,21 +95,26 @@ export function ARScene({ bimFile, position, rotation, scale, onModelTransform }
           ar-modes="scene-viewer webxr quick-look"
           camera-controls
           shadow-intensity="1"
+          auto-rotate
+          touch-action="none"
           style={{ width: "100%", height: "100%" }}
         >
           <button
             slot="ar-button"
-            className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+            className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 shadow-xl transition-all active:scale-95"
           >
             <Camera className="h-5 w-5" />
             Активировать AR
           </button>
         </model-viewer>
 
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 max-w-md px-4">
-          <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-4 py-3 text-sm text-blue-700 text-center backdrop-blur-sm">
-            <div className="font-semibold mb-1">AR режим доступен</div>
-            <p className="text-xs">Нажмите кнопку "Активировать AR" для запуска камеры</p>
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 max-w-md w-full px-4">
+          <div className="rounded-lg bg-background/80 border border-primary/20 px-4 py-3 text-sm text-foreground text-center backdrop-blur-md shadow-lg">
+            <div className="font-semibold mb-1 flex items-center justify-center gap-2">
+              <Camera className="h-4 w-4 text-primary" />
+              AR режим готов
+            </div>
+            <p className="text-xs text-muted-foreground">Нажмите кнопку ниже для запуска камеры</p>
           </div>
         </div>
       </div>
@@ -139,6 +146,8 @@ export function ARScene({ bimFile, position, rotation, scale, onModelTransform }
               scale={scale}
               onTransform={onModelTransform}
               isARActive={false}
+              onPointerDown={onPointSelect}
+              referencePoints={referencePoints}
             />
           </Suspense>
 
@@ -171,6 +180,8 @@ export function ARScene({ bimFile, position, rotation, scale, onModelTransform }
             scale={scale}
             onTransform={onModelTransform}
             isARActive={false}
+            onPointerDown={onPointSelect}
+            referencePoints={referencePoints}
           />
         </Suspense>
 

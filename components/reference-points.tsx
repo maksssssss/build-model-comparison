@@ -16,7 +16,7 @@ interface ReferencePointsProps {
   points: ReferencePoint[]
   onAddPoint: () => void
   onRemovePoint: (id: string) => void
-  onSetModelPosition: (id: string, position: [number, number, number]) => void
+  onSetModelPosition: (id: string) => void
   onSetRealPosition: (id: string, position: [number, number, number]) => void
   onAlign: () => void
   isSettingPoint: boolean
@@ -94,11 +94,11 @@ export function ReferencePoints({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-6 text-xs bg-transparent"
-                      onClick={() => onSetModelPosition(point.id, [0, 0, 0])}
+                      className={`h-6 text-xs bg-transparent ${currentPointId === point.id && currentMode === "model" ? "border-primary text-primary" : ""}`}
+                      onClick={() => onSetModelPosition(point.id)}
                       disabled={isSettingPoint && !(currentPointId === point.id && currentMode === "model")}
                     >
-                      {currentPointId === point.id && currentMode === "model" ? "Выберите..." : "Установить"}
+                      {currentPointId === point.id && currentMode === "model" ? "Выберите на модели..." : "Установить"}
                     </Button>
                   )}
                 </div>
